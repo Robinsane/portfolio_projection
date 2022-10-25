@@ -7,23 +7,23 @@ from dateutil.relativedelta import relativedelta
 class InvestmentType(Enum):
     ETFS = 1
     SINGLE_STOCKS = 2
-    REAL_ESTATE = 3
+    # REAL_ESTATE = 3
     BONDS = 4
     CASH = 5
 
 
 YOY_RETURN_ESTIMATES = {
     InvestmentType.SINGLE_STOCKS: 7,
-    InvestmentType.ETFS: 7,  # TODO
-    InvestmentType.REAL_ESTATE: 5.8,  # TODO confirm
-    InvestmentType.BONDS: 4.0,  # TODO recalculate with failing percentages van cursus TODO - vermeld verlies van recurrente interest hier laten vallen <-> herinvesteer jaarlijks terug in bonds voor simplicity's sake.
-    InvestmentType.CASH: 0.05,  # TODO explain that we assume some return on cash <-> savings accounts etc.
+    InvestmentType.ETFS: 7,
+    # InvestmentType.REAL_ESTATE: 5.8,
+    InvestmentType.BONDS: 4.0,
+    InvestmentType.CASH: 0.05,
 }
 
 MOM_RETURN_MULTIPLIER = {
     InvestmentType.SINGLE_STOCKS: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.SINGLE_STOCKS] / 100)) ** (1 / float(12)),
     InvestmentType.ETFS: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.ETFS] / 100)) ** (1 / float(12)),
-    InvestmentType.REAL_ESTATE: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.REAL_ESTATE] / 100)) ** (1 / float(12)),
+    # InvestmentType.REAL_ESTATE: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.REAL_ESTATE] / 100)) ** (1 / float(12)),
     InvestmentType.BONDS: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.BONDS] / 100)) ** (1 / float(12)),
     InvestmentType.CASH: (1 + (YOY_RETURN_ESTIMATES[InvestmentType.CASH] / 100)) ** (1 / float(12)),
 }
@@ -37,6 +37,7 @@ class Portfolio:
         self.allocation = dict()
         self.monthly_deposit = monthly_deposit
         self.monthly_percentages = dict
+        self.still_injecting_initial_cash = True
         self.set_monthly_deposit_allocation(monthly_percentages)
         for investment_type in InvestmentType:
             self.allocation.update({investment_type: 0})  # start each investment_type at 0
@@ -68,10 +69,10 @@ class Portfolio:
             self.allocation[InvestmentType.CASH] = 0
 
     def simulate_one_month(self):
-        # TODO parametrize percentage of starting cash => slightly more into single stocks because of first big chunk into ETF's
-        # getting starting cash invested
-        self.invest_percentage_of_starting_cash(InvestmentType.SINGLE_STOCKS, 0.92)
-        self.invest_percentage_of_starting_cash(InvestmentType.ETFS, 0.92)
+        # getting initial cash cash invested
+        if self.still_injecting_initial_cash:
+            self.invest_percentage_of_starting_cash(InvestmentType.SINGLE_STOCKS, 0.694)
+            self.invest_percentage_of_starting_cash(InvestmentType.ETFS, 0.694)
 
         # allocation of monthly deposit
         for investment_type, percent in self.monthly_percentages.items():
@@ -90,6 +91,16 @@ class Portfolio:
 
         return total
 
+    def print_markdown_table_row(self):
+        """to generate markdown table row -> to use on jekyll website"""
+        print(f"| {self.date} "
+              f"| {round(self.allocation[InvestmentType.CASH]):,} "
+              f"| {round(self.allocation[InvestmentType.ETFS]):,} "
+              f"| {round(self.allocation[InvestmentType.SINGLE_STOCKS]):,} "
+              f"| {round(self.allocation[InvestmentType.BONDS]):,} "
+              f"| **{round(self.get_portfolio_worth()):,}** |".replace(",", ".")
+              )
+
 
 if __name__ == "__main__":
     p = Portfolio(starting_date=date.today(),
@@ -98,33 +109,16 @@ if __name__ == "__main__":
                   monthly_percentages={InvestmentType.ETFS: 50, InvestmentType.SINGLE_STOCKS: 50}
                   )
 
+    p.print_markdown_table_row()
+
     p.invest_percentage_of_starting_cash(InvestmentType.ETFS, 33)
     p.invest_percentage_of_starting_cash(InvestmentType.BONDS, 17)
 
     while p.allocation[InvestmentType.CASH] != 0:
         p.simulate_one_month()
-    p.print_allocation()
-    print(p.date)
-    print(p.get_portfolio_worth())
+        p.print_markdown_table_row()
+    p.still_injecting_initial_cash = False  # no longer injecting initial cash
 
-    # TODO here stop initial cash investing things
-
-    while p.date < p.starting_date + relativedelta(years=5):
-        p.simulate_one_month()
-    p.print_allocation()
-    print(p.date)
-    print(p.get_portfolio_worth())
-
-    # TODO here 6 months of saving the monthly deposit, then get mortgage for ... / calculate new monthly allocation
-    # TODO write something for mortgage + adjust get_portfolio_worth
-
-    # TODO lose some percentages (3%?) when selling bonds
-
-    # TODO implement rental income (be very conservative:x% of real_estate type - (25% costs and repairs + 25% of labour costs)) ------- monthly deposit.
-
-    # TODO remove temp below to see after 25 years current thing:
     while p.date < p.starting_date + relativedelta(years=25):
         p.simulate_one_month()
-    p.print_allocation()
-    print(p.date)
-    print(p.get_portfolio_worth())
+        p.print_markdown_table_row()
